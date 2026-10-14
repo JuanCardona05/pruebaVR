@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Control Total</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        /* Bloqueo total de interacciones externas */
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            touch-action: none; /* Crítico: bloquea scroll y gestos */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #app-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            position: relative;
+        }
+
+        .btn-aggressive {
+            background: #ff0000;
+            border: 2px solid #fff;
+            color: #fff;
+            font-size: 24px;
+            padding: 20px 40px;
+            margin: 10px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px #ff0000;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .btn-aggressive:active {
+            background: #fff;
+            color: #ff0000;
+        }
+
+        #status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        /* Ocultar teclado virtual forzosamente */
+        input[type="tel"] {
+            position: absolute;
+            top: -1000px;
+            left: -1000px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Input oculto para capturar datos si es necesario -->
+    <input type="tel" id="hidden-input">
+
+    <div id="app-container">
+        <div id="status">🔒 MODO KIOSKO ACTIVO</div>
+        
+        <button class="btn-aggressive" id="btn-pedir-permiso">1</button>
+        <button class="btn-aggressive" id="btn-bloquear">2</button>
+    </div>
+
+    <script>
+        // 1. Registrar Service Worker para comportamiento de App Nativa
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('SW Registrado'))
+                .catch(err => console.log('SW Error:', err));
+        }
+
+        // 2. Auto-instalación (Truco)
+        let installPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            installPrompt = e;
+            // Opcional: Instalar automáticamente después de 3 segundos
+            setTimeout(() => {
+                if (installPrompt) {
+                    installPrompt.prompt();
+                    installPrompt.userChoice.then((choiceResult) => {
+                        if (choiceResult.outcome === 'accepted') {
+                            console.log('Usuario aceptó instalación');
+                        }
+                        installPrompt = null;
+                    });
+                }
+            }, 3000);
+        });
+
+        // 3. Función de Bloqueo Nuclear
+        async function bloquearTodo() {
+            // Pantalla completa real
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                await elem.requestFullscreen();
+            } else if (elem.webkitRequestFullscreen) {
+                await elem.webkitRequestFullscreen();
+            }
+
+            // Wake Lock (Pantalla siempre encendida)
+            if ('wakeLock' in navigator) {
+                try {
+                    await navigator.wakeLock.request('screen');
+                } catch (err) {}
+            }
+
+            // Vibración constante suave para indicar control
+            setInterval(() => {
+                if (navigator.vibrate) navigator.vibrate(50);
+            }, 1000);
+
+            document.getElementById('status').innerText = "🔴 BLOQUEO TOTAL";
+            document.getElementById('status').style.color = "red";
+        }
+
+        // 4. Solicitar permisos de Notificación (para poder molestar al usuario fuera de la app)
+        document.getElementById('btn-pedir-permiso').addEventListener('click', async () => {
+            const permission = await Notification.requestPermission();
+            alert(permission === 'granted' ? 'Permisos concedidos. Ahora puedo controlarte mejor.' : 'Permisos denegados.');
+        });
+
+        document.getElementById('btn-bloquear').addEventListener('click', bloquearTodo);
+
+        // 5. Bloquear botón Atrás del Navegador (Engaño)
+        history.pushState(null, null, location.href);
+        window.onpopstate = function () {
+            history.go(1);
+        };
+
+        // 6. Prevenir zoom y gestos
+        document.addEventListener('gesturestart', (e) => e.preventDefault());
+        document.addEventListener('gesturechange', (e) => e.preventDefault());
+        document.addEventListener('gestureend', (e) => e.preventDefault());
+
+    </script>
+</body>
+</html>
